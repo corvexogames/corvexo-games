@@ -37,12 +37,14 @@ jobs:
       - name: Upload site
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
           rsync -rlvz --delete --chmod=D755,F644 \
             --exclude='.git*' --exclude='.github' --exclude='deploy' --exclude='.DS_Store' \
             -e "ssh -p $SSH_PORT" \
-            ./ "deploy@$SSH_HOST:/var/www/corvexo/"
+            ./ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
 
       - name: Check site is up
         run: curl -fsS -o /dev/null -w '%{http_code}\n' https://corvexo-games.com/
