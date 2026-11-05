@@ -152,8 +152,9 @@ footer a:hover{color:var(--text)}
   .brand span{display:none}
   .values{grid-template-columns:1fr;max-width:34rem}
   .world{min-height:170vh}
-  .world-stick,.world-stick.right{align-items:flex-end;justify-content:center;padding:84px 16px calc(18px + env(safe-area-inset-bottom,0px))}
-  .panel{width:100%;max-width:34rem;padding:20px;border-radius:22px;border:1px solid var(--line);background:rgba(10,8,26,.66);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+  .world-stick,.world-stick.right{align-items:flex-end;justify-content:center;padding:84px 16px calc(18px + env(safe-area-inset-bottom,0px));perspective:none}
+  /* flat on phones: scroll-linked transforms and live blur over the canvas make the panel shake */
+  .panel{width:100%;max-width:34rem;padding:20px;border-radius:22px;border:1px solid var(--line);background:rgba(10,8,26,.88);transform:none;will-change:opacity}
   .panel::before{display:none}
   .panel-top{margin-bottom:12px}
   .game-icon{width:56px;height:56px;border-radius:14px}

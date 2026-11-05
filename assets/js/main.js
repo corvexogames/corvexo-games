@@ -21,9 +21,13 @@ const railLinks = stageEls.map((el, i) => {
 /* scroll position -> continuous stage index. stops[i] is the scrollY where stage i is centred */
 let stops = [];
 let vh = innerHeight;
+/* the phone address bar changes innerHeight mid-scroll, which must not move the stops */
+const heightProbe = document.createElement('div');
+heightProbe.style.cssText = 'position:fixed;top:0;width:0;height:100svh;visibility:hidden;pointer-events:none';
+document.body.append(heightProbe);
 function measure() {
-  vh = innerHeight;
-  const max = root.scrollHeight - vh;
+  vh = heightProbe.offsetHeight || innerHeight;
+  const max = root.scrollHeight - innerHeight;
   stops = stageEls.map((el, i) => {
     if (i === 0) return 0;
     const r = el.getBoundingClientRect();
@@ -69,6 +73,7 @@ let userScrolled = false;
 let draggingBar = false;
 
 const canSnap = () => !reducedMotion && innerHeight >= 560;
+const touchScreen = matchMedia('(pointer:coarse)').matches;
 
 function measureSnap() {
   const head = document.querySelector('.about-head');
@@ -97,6 +102,17 @@ function scrollsFreely(dir) {
 function stopGlide() {
   glideId += 1;
   gliding = false;
+  clearTimeout(restTimer);
+}
+
+/* per-frame scrollTo shakes sticky content on phones, so there the browser animates the scroll itself */
+let restTimer = 0;
+function waitForRest() {
+  clearTimeout(restTimer);
+  restTimer = setTimeout(() => {
+    gliding = false;
+    anchorY = scrollY;
+  }, 180);
 }
 
 function glideTo(top) {
@@ -104,6 +120,12 @@ function glideTo(top) {
   const from = scrollY;
   const distance = Math.abs(top - from);
   if (distance < 2) return;
+  if (touchScreen) {
+    gliding = true;
+    scrollTo({ top, behavior: 'smooth' });
+    waitForRest();
+    return;
+  }
   const duration = Math.min(1500, 650 + distance * 0.2);
   const start = performance.now();
   gliding = true;
@@ -188,6 +210,7 @@ function settle() {
 }
 addEventListener('scroll', () => {
   if (!gliding) queueSettle();
+  else if (touchScreen) waitForRest();
 }, { passive: true });
 
 /* in-page links land on the same stops as scrolling */
