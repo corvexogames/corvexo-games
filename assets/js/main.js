@@ -8,8 +8,9 @@ const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 const smoother = (x) => x * x * x * (x * (x * 6 - 15) + 10);
 
 /* journey rail */
-const railLinks = stageEls.map((el) => {
+const railLinks = stageEls.map((el, i) => {
   const a = document.createElement('a');
+  a.dataset.stop = i;
   a.href = `#${el.id || 'games'}`;
   a.innerHTML = `<span>${el.dataset.label}</span><i></i>`;
   a.setAttribute('aria-label', el.dataset.label);
@@ -29,6 +30,7 @@ function measure() {
     return Math.min(max, r.top + scrollY + (r.height - vh) / 2);
   });
   stops[stops.length - 1] = max;
+  measureSnap();
 }
 function stageAt(y) {
   for (let i = 0; i < stops.length - 1; i++) {
@@ -54,6 +56,150 @@ function updatePanels(dt) {
     panel.el.style.pointerEvents = Math.abs(panel.p) > 0.5 ? 'none' : '';
   }
 }
+
+/* one scroll gesture moves one stop. The about block can outgrow a phone screen, so it scrolls freely there */
+let snapStops = [];
+let gamesStop = 0;
+let freeZone = null;
+let gliding = false;
+let glideId = 0;
+let anchorY = 0;
+let touching = false;
+let userScrolled = false;
+let draggingBar = false;
+
+const canSnap = () => !reducedMotion && innerHeight >= 560;
+
+function measureSnap() {
+  const head = document.querySelector('.about-head');
+  const values = document.querySelector('.values');
+  const games = document.querySelector('.games-head');
+  const bottom = values.offsetTop + values.offsetHeight;
+  freeZone = bottom - head.offsetTop > vh - 110 ? { from: head.offsetTop - 90, to: bottom + 30 - vh } : null;
+  gamesStop = games.offsetTop + (games.offsetHeight - vh) / 2;
+  const edges = freeZone ? [freeZone.from, freeZone.to] : [];
+  snapStops = [...stops.filter((_, i) => !freeZone || i !== 1), gamesStop, ...edges].sort((a, b) => a - b);
+}
+
+function nextStop(y, dir) {
+  const found = dir > 0 ? snapStops.find((s) => s > y + 3) : [...snapStops].reverse().find((s) => s < y - 3);
+  return found ?? y;
+}
+
+function scrollsFreely(dir) {
+  if (!freeZone) return false;
+  const y = scrollY;
+  const inside = y >= freeZone.from - 3 && y <= freeZone.to + 3;
+  const leaving = dir > 0 ? y >= freeZone.to - 3 : y <= freeZone.from + 3;
+  return inside && !leaving;
+}
+
+function stopGlide() {
+  glideId += 1;
+  gliding = false;
+}
+
+function glideTo(top) {
+  const id = ++glideId;
+  const from = scrollY;
+  const distance = Math.abs(top - from);
+  if (distance < 2) return;
+  const duration = Math.min(1500, 650 + distance * 0.2);
+  const start = performance.now();
+  gliding = true;
+  const step = (now) => {
+    if (id !== glideId) return;
+    const x = clamp((now - start) / duration);
+    const eased = x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+    scrollTo({ top: from + (top - from) * eased, behavior: 'instant' });
+    if (x < 1) {
+      requestAnimationFrame(step);
+    } else {
+      gliding = false;
+      anchorY = scrollY;
+    }
+  };
+  requestAnimationFrame(step);
+}
+
+let lastWheel = 0;
+let lastDelta = 0;
+addEventListener('wheel', (e) => {
+  if (e.ctrlKey || !canSnap() || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  const now = performance.now();
+  const delta = Math.abs(e.deltaY);
+  /* trackpad inertia keeps firing with shrinking deltas; only a pause or a new push is a new gesture */
+  const newGesture = now - lastWheel > 140 || delta > lastDelta * 1.6 + 8;
+  lastWheel = now;
+  lastDelta = delta;
+  const dir = Math.sign(e.deltaY);
+  if (!dir || scrollsFreely(dir)) return;
+  e.preventDefault();
+  if (!gliding && newGesture) glideTo(nextStop(scrollY, dir));
+}, { passive: false });
+
+const STEP_KEYS = { ArrowDown: 1, PageDown: 1, ' ': 1, ArrowUp: -1, PageUp: -1 };
+addEventListener('keydown', (e) => {
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  const dir = STEP_KEYS[e.key] * (e.shiftKey ? -1 : 1);
+  if (!dir || !canSnap() || scrollsFreely(dir)) return;
+  e.preventDefault();
+  if (!gliding) glideTo(nextStop(scrollY, dir));
+});
+
+addEventListener('touchstart', () => {
+  stopGlide();
+  touching = true;
+  userScrolled = true;
+  anchorY = scrollY;
+}, { passive: true });
+function endTouch() {
+  touching = false;
+  queueSettle();
+}
+addEventListener('touchend', endTouch, { passive: true });
+addEventListener('touchcancel', endTouch, { passive: true });
+
+/* leave a drag on the scrollbar alone */
+addEventListener('mousedown', (e) => {
+  if (e.clientX >= root.clientWidth) draggingBar = true;
+});
+addEventListener('pointermove', (e) => {
+  if (e.buttons === 0) draggingBar = false;
+}, { passive: true });
+
+/* touch ends on its own momentum, so finish the move once the page comes to rest */
+let settleTimer = 0;
+function queueSettle() {
+  clearTimeout(settleTimer);
+  settleTimer = setTimeout(settle, 130);
+}
+function settle() {
+  if (!canSnap() || gliding || touching || draggingBar || !userScrolled) return;
+  const y = scrollY;
+  const moved = y - anchorY;
+  if (snapStops.some((s) => Math.abs(s - y) < 4) || scrollsFreely(Math.sign(moved) || 1)) {
+    anchorY = y;
+    return;
+  }
+  userScrolled = false;
+  const nearest = snapStops.reduce((a, b) => (Math.abs(b - y) < Math.abs(a - y) ? b : a));
+  glideTo(Math.abs(moved) < 24 ? nearest : nextStop(y, Math.sign(moved)));
+}
+addEventListener('scroll', () => {
+  if (!gliding) queueSettle();
+}, { passive: true });
+
+/* in-page links land on the same stops as scrolling */
+document.addEventListener('click', (e) => {
+  const link = e.target.closest?.('a[href^="#"]');
+  if (!link || !canSnap()) return;
+  const targets = { '#top': 0, '#about': freeZone ? freeZone.from : stops[1], '#games': gamesStop, '#contact': stops[stops.length - 1] };
+  const top = link.dataset.stop ? stops[link.dataset.stop] : targets[link.getAttribute('href')];
+  if (top === undefined) return;
+  e.preventDefault();
+  glideTo(top);
+});
 
 /* reveal on scroll */
 const io = new IntersectionObserver((entries) => {
