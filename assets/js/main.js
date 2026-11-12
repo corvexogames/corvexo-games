@@ -73,7 +73,6 @@ let userScrolled = false;
 let draggingBar = false;
 
 const canSnap = () => !reducedMotion && innerHeight >= 560;
-const touchScreen = matchMedia('(pointer:coarse)').matches;
 
 function measureSnap() {
   const head = document.querySelector('.about-head');
@@ -102,16 +101,6 @@ function scrollsFreely(dir) {
 function stopGlide() {
   glideId += 1;
   gliding = false;
-  clearTimeout(restTimer);
-}
-
-let restTimer = 0;
-function waitForRest() {
-  clearTimeout(restTimer);
-  restTimer = setTimeout(() => {
-    gliding = false;
-    anchorY = scrollY;
-  }, 180);
 }
 
 function glideTo(top) {
@@ -162,14 +151,43 @@ addEventListener('keydown', (e) => {
   if (!gliding) glideTo(nextStop(scrollY, dir));
 });
 
-addEventListener('touchstart', () => {
+/* touch: the page follows the finger, and on release it goes straight on to the next stop.
+   Letting the browser's momentum run first makes it slow down short of the stop, pause, then start again */
+let touchY = 0;
+let drag = null;
+let ownTouch = false;
+addEventListener('touchstart', (e) => {
   stopGlide();
   touching = true;
   userScrolled = true;
   anchorY = scrollY;
+  touchY = e.touches[0].clientY;
+  drag = null;
+  ownTouch = e.touches.length === 1 && !e.target.closest?.('.rail');
 }, { passive: true });
+addEventListener('touchmove', (e) => {
+  if (!ownTouch || !canSnap() || e.touches.length > 1) return;
+  const dy = touchY - e.touches[0].clientY;
+  if (!drag) {
+    const dir = Math.sign(dy);
+    if (!dir) return;
+    if (scrollsFreely(dir)) { ownTouch = false; return; }
+    drag = { from: scrollY, base: dy, min: nextStop(scrollY, -1), max: nextStop(scrollY, 1) };
+  }
+  if (e.cancelable) e.preventDefault();
+  scrollTo({ top: clamp(drag.from + dy - drag.base, drag.min, drag.max), behavior: 'instant' });
+}, { passive: false });
 function endTouch() {
   touching = false;
+  if (drag) {
+    const { from } = drag;
+    const moved = scrollY - from;
+    const nearest = snapStops.reduce((a, b) => (Math.abs(b - scrollY) < Math.abs(a - scrollY) ? b : a));
+    drag = null;
+    userScrolled = false;
+    glideTo(Math.abs(moved) < 24 ? nearest : nextStop(from, Math.sign(moved)));
+    return;
+  }
   queueSettle();
 }
 addEventListener('touchend', endTouch, { passive: true });
@@ -203,7 +221,6 @@ function settle() {
 }
 addEventListener('scroll', () => {
   if (!gliding) queueSettle();
-  else if (touchScreen) waitForRest();
 }, { passive: true });
 
 /* in-page links land on the same stops as scrolling */
