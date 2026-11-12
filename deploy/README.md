@@ -61,3 +61,11 @@ Settings → Pages → отключить, чтобы не было второй
 
 Push в `main` или Actions → "Deploy to server" → Run workflow. Последний шаг проверяет `https://corvexo-games.com/`
 (упадёт, пока не выпущен SSL из шага 1).
+
+## Статистика сайта (`/admin/`)
+
+Страницы шлют просмотры и нажатия в `api/track.php` (PHP + SQLite, без cookies). Админка: `https://corvexo-games.com/admin/`.
+
+1. В FASTPANEL у сайта должен быть включён PHP (PHP-FPM, версия 8+, модуль `pdo_sqlite`).
+2. Repo → Settings → Secrets → Actions → секрет `ADMIN_PASSWORD` — пароль входа в админку. При деплое на сервер попадает только его хеш (`api/config.php`).
+3. База лежит вне папки сайта: `<папка сайта>/../corvexo-stats/stats.sqlite`, поэтому деплой её не стирает.

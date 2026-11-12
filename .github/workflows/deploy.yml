@@ -17,6 +17,13 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
+      # Пароль админки статистики (/admin/) хранится в секрете ADMIN_PASSWORD, на сервер уходит только его хеш
+      - name: Write admin config
+        env:
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          php -r '$p = getenv("ADMIN_PASSWORD"); echo "<?php\nreturn [\"admin_hash\" => " . var_export($p === "" ? "" : password_hash($p, PASSWORD_DEFAULT), true) . "];\n";' > api/config.php
+
       # 2. Затем выполняем деплой через rsync (теперь он автоматически подхватит ключ)
       - name: Upload site
         env:
