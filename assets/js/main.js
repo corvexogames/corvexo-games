@@ -105,7 +105,6 @@ function stopGlide() {
   clearTimeout(restTimer);
 }
 
-/* per-frame scrollTo shakes sticky content on phones, so there the browser animates the scroll itself */
 let restTimer = 0;
 function waitForRest() {
   clearTimeout(restTimer);
@@ -120,20 +119,14 @@ function glideTo(top) {
   const from = scrollY;
   const distance = Math.abs(top - from);
   if (distance < 2) return;
-  if (touchScreen) {
-    gliding = true;
-    scrollTo({ top, behavior: 'smooth' });
-    waitForRest();
-    return;
-  }
   const duration = Math.min(1500, 650 + distance * 0.2);
   const start = performance.now();
   gliding = true;
   const step = (now) => {
     if (id !== glideId) return;
     const x = clamp((now - start) / duration);
-    const eased = x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
-    scrollTo({ top: from + (top - from) * eased, behavior: 'instant' });
+    /* linear: the same speed all the way to the stop, no slow-down at the end */
+    scrollTo({ top: from + (top - from) * x, behavior: 'instant' });
     if (x < 1) {
       requestAnimationFrame(step);
     } else {
@@ -222,6 +215,57 @@ document.addEventListener('click', (e) => {
   if (top === undefined) return;
   e.preventDefault();
   glideTo(top);
+});
+
+/* rail scrubbing: press a dot, slide up or down to see where you'll land, release to go there */
+const railTip = document.createElement('b');
+railTip.className = 'rail-tip';
+railTip.setAttribute('aria-hidden', 'true');
+rail.append(railTip);
+let scrubbing = false;
+let picked = -1;
+function pickAt(y) {
+  const i = railLinks.reduce((best, a, j) => {
+    const r = a.getBoundingClientRect();
+    const d = Math.abs(r.top + r.height / 2 - y);
+    return d < best.d ? { j, d } : best;
+  }, { j: 0, d: Infinity }).j;
+  if (i === picked) return;
+  picked = i;
+  railLinks.forEach((a, j) => a.classList.toggle('pick', j === i));
+  const a = railLinks[i];
+  railTip.textContent = stageEls[i].dataset.label;
+  railTip.style.top = `${a.offsetTop + a.offsetHeight / 2}px`;
+}
+function endScrub(go) {
+  if (!scrubbing) return;
+  scrubbing = false;
+  rail.classList.remove('scrubbing');
+  railLinks.forEach((a) => a.classList.remove('pick'));
+  if (go && picked >= 0) {
+    const top = stops[picked];
+    if (canSnap()) glideTo(top);
+    else scrollTo({ top, behavior: 'instant' });
+  }
+  picked = -1;
+}
+rail.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  scrubbing = true;
+  picked = -1;
+  pickAt(e.clientY);
+  rail.classList.add('scrubbing');
+  try { rail.setPointerCapture(e.pointerId); } catch {}
+});
+rail.addEventListener('pointermove', (e) => { if (scrubbing) pickAt(e.clientY); });
+rail.addEventListener('pointerup', () => endScrub(true));
+rail.addEventListener('pointercancel', () => endScrub(false));
+/* the pointer handlers navigate; let only keyboard clicks (detail 0) through to the link handler */
+rail.addEventListener('click', (e) => {
+  if (e.detail === 0) return;
+  e.preventDefault();
+  e.stopPropagation();
 });
 
 /* reveal on scroll */

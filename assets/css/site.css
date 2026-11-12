@@ -64,6 +64,22 @@ main{overflow-x:clip}
 .rail a.on{color:var(--text)}
 .rail a.on i{background:var(--accent);transform:scale(1.7);box-shadow:0 0 12px var(--accent)}
 @media (min-width:1000px){.js .rail{display:flex}}
+/* press and slide along the dots: a tab shows where releasing will land */
+.rail{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.rail-tip{position:absolute;right:34px;top:0;transform:translate(8px,-50%) scale(.9);opacity:0;pointer-events:none;
+  padding:8px 14px;border-radius:12px 4px 4px 12px;background:var(--accent);color:#0b0718;
+  font:600 .82rem/1 var(--display);white-space:nowrap;box-shadow:0 10px 30px -10px var(--accent);
+  transition:opacity .2s,transform .25s var(--ease),top .18s var(--ease),background .4s}
+.rail-tip::after{content:"";position:absolute;left:100%;top:50%;transform:translateY(-50%);border:7px solid transparent;border-left-color:var(--accent);border-right:0}
+.rail.scrubbing .rail-tip{opacity:1;transform:translate(0,-50%)}
+.rail.scrubbing a span{opacity:0}
+.rail a.pick i{background:#fff;transform:scale(2.2);box-shadow:0 0 14px rgba(255,255,255,.7)}
+/* phones: dots only, with finger-sized tap areas */
+@media (max-width:999px){
+  .js .rail{display:flex;right:0;gap:0}
+  .rail a{padding:13px 10px 13px 16px}
+  .rail span{display:none}
+}
 
 /* buttons */
 .btns{display:flex;flex-wrap:wrap;gap:12px}
@@ -129,6 +145,8 @@ h2{font-size:clamp(2.1rem,5.6vw,4.6rem);font-weight:700}
 .tags li{font-size:.77rem;font-weight:500;padding:4px 11px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--text)}
 .panel p{color:#dcd8f2;font-size:1.03rem}
 .panel .btn{margin-top:22px}
+.btn-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.panel .btn-row .btn{margin-top:0}
 
 .next{min-height:150vh;display:flex;align-items:flex-end;justify-content:center;padding:0 var(--gutter) 40vh;text-align:center}
 .more{font-family:var(--display);font-weight:500;font-size:clamp(1.05rem,2.6vw,1.8rem);max-width:30ch;line-height:1.35}
@@ -152,7 +170,7 @@ footer a:hover{color:var(--text)}
   .brand span{display:none}
   .values{grid-template-columns:1fr;max-width:34rem}
   .world{min-height:170vh}
-  .world-stick,.world-stick.right{align-items:flex-end;justify-content:center;padding:84px 16px calc(18px + env(safe-area-inset-bottom,0px));perspective:none}
+  .world-stick,.world-stick.right{align-items:flex-end;justify-content:center;padding:84px 34px calc(18px + env(safe-area-inset-bottom,0px)) 16px;perspective:none}
   /* flat on phones: scroll-linked transforms and live blur over the canvas make the panel shake */
   .panel{width:100%;max-width:34rem;padding:20px;border-radius:22px;border:1px solid var(--line);background:rgba(10,8,26,.88);transform:none;will-change:opacity}
   .panel::before{display:none}
