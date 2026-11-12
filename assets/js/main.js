@@ -73,6 +73,7 @@ let userScrolled = false;
 let draggingBar = false;
 
 const canSnap = () => !reducedMotion && innerHeight >= 560;
+const touchScreen = matchMedia('(pointer:coarse)').matches;
 
 function measureSnap() {
   const head = document.querySelector('.about-head');
@@ -101,6 +102,17 @@ function scrollsFreely(dir) {
 function stopGlide() {
   glideId += 1;
   gliding = false;
+  clearTimeout(restTimer);
+}
+
+/* per-frame scrollTo shakes the sticky game panels on phones, so there the browser animates the scroll itself */
+let restTimer = 0;
+function waitForRest() {
+  clearTimeout(restTimer);
+  restTimer = setTimeout(() => {
+    gliding = false;
+    anchorY = scrollY;
+  }, 180);
 }
 
 function glideTo(top) {
@@ -108,6 +120,12 @@ function glideTo(top) {
   const from = scrollY;
   const distance = Math.abs(top - from);
   if (distance < 2) return;
+  if (touchScreen) {
+    gliding = true;
+    scrollTo({ top, behavior: 'smooth' });
+    waitForRest();
+    return;
+  }
   const duration = Math.min(1500, 650 + distance * 0.2);
   const start = performance.now();
   gliding = true;
@@ -221,6 +239,7 @@ function settle() {
 }
 addEventListener('scroll', () => {
   if (!gliding) queueSettle();
+  else if (touchScreen) waitForRest();
 }, { passive: true });
 
 /* in-page links land on the same stops as scrolling */
